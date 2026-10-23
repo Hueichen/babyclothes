@@ -560,11 +560,22 @@
     $('#rc-cat').addEventListener('change', rcRender);
     $('#rc-reload').addEventListener('click', () => loadRecords(true));
     $('#rc-list').addEventListener('click', (e) => {
-      const card = e.target.closest('.row-card'); if (!card) return;
-      card.classList.toggle('open');
-      const d = card.querySelector('.row-detail');
-      if (d) d.hidden = !card.classList.contains('open');
+      const tr = e.target.closest('tr.rc-row'); if (!tr) return;
+      toggleRecordRow(tr);
     });
+    $('#rc-list').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const tr = e.target.closest('tr.rc-row'); if (!tr) return;
+      e.preventDefault(); toggleRecordRow(tr);
+    });
+  }
+
+  function toggleRecordRow(tr) {
+    const open = !tr.classList.contains('open');
+    tr.classList.toggle('open', open);
+    tr.setAttribute('aria-expanded', String(open));
+    const d = tr.nextElementSibling;
+    if (d && d.classList.contains('rc-detail')) d.hidden = !open;
   }
 
   async function loadRecords(force) {
@@ -607,37 +618,56 @@
       return;
     }
 
-    $('#rc-list').innerHTML = rows.map(r => {
-      const sub = [r.category_des || CAT_LABEL[r.category] || '', r.baby_age_months != null ? r.baby_age_months + ' 個月' : '', r.created_date]
-        .filter(Boolean).join('・');
+    const dash = '<span class="muted">–</span>';
+    const body = rows.map(r => {
       const measures = ALL_FIELDS
         .map(([k, l]) => [l, r[k + '_cm']])
         .filter(([, v]) => v !== null && v !== undefined && v !== '');
+      const catText = r.category_des || CAT_LABEL[r.category] || '';
       return `
-        <div class="row-card" role="button" tabindex="0">
-          <div class="row-top">
-            <div class="row-main">
-              <div class="row-title">${esc(r.brand || '（未填品牌）')}</div>
-              <div class="row-sub">${esc(sub)}</div>
+        <tr class="rc-row" tabindex="0" aria-expanded="false">
+          <td class="c-brand">${r.brand ? esc(r.brand) : dash}</td>
+          <td class="c-cat">${catText ? esc(catText) : dash}</td>
+          <td class="c-size">${r.labeled_size ? esc(r.labeled_size) : dash}</td>
+          <td class="c-fb"><div class="clamp">${fitPills(r)}${r.fit_feedback ? esc(r.fit_feedback) : (fitPills(r) ? '' : dash)}</div></td>
+          <td class="c-style"><div class="clamp">${r.style_note ? esc(r.style_note) : dash}</div></td>
+          <td class="c-age">${r.baby_age_months != null ? esc(r.baby_age_months) : dash}</td>
+        </tr>
+        <tr class="rc-detail" hidden>
+          <td colspan="6">
+            <div class="rc-detail-inner">
+              ${measures.length
+                ? `<div class="kv">${measures.map(([l, v]) => `<div><small>${l}</small><b>${esc(v)}</b></div>`).join('')}</div>`
+                : '<p class="muted">此筆沒有尺寸數值</p>'}
+              ${r.fit_feedback ? `<p><b>回饋</b>${esc(r.fit_feedback)}</p>` : ''}
+              ${r.style_note ? `<p><b>款式</b>${esc(r.style_note)}</p>` : ''}
+              ${r.note ? `<p><b>備註</b>${esc(r.note)}</p>` : ''}
+              ${r.created_date ? `<p class="muted">紀錄於 ${esc(r.created_date)}</p>` : ''}
             </div>
-            <div class="size-badge">${esc(r.labeled_size || '—')}</div>
-          </div>
-          ${(r.fit_feedback || fitPills(r)) ? `<div class="row-fb">${fitPills(r)}${esc(r.fit_feedback)}</div>` : ''}
-          <div class="row-detail" hidden>
-            ${measures.length
-              ? `<div class="kv">${measures.map(([l, v]) => `<div><small>${l}</small><b>${esc(v)}</b></div>`).join('')}</div>`
-              : '<p>此筆沒有尺寸數值</p>'}
-            ${r.style_note ? `<p>款式：${esc(r.style_note)}</p>` : ''}
-            ${r.note ? `<p>備註：${esc(r.note)}</p>` : ''}
-          </div>
-        </div>`;
+          </td>
+        </tr>`;
     }).join('');
+
+    $('#rc-list').innerHTML = `
+      <div class="table-wrap">
+        <table class="rc-table">
+          <thead><tr>
+            <th class="c-brand">品牌</th><th class="c-cat">分類</th><th class="c-size">size</th>
+            <th class="c-fb">回饋</th><th class="c-style">款式/花色</th><th class="c-age">月齡</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="table-hint">點一列看尺寸細節・表格可左右滑動</p>`;
   }
 
   /* ================================================================
    * Boot
    * ================================================================ */
   function boot() {
+    window.__booted = true;
+    $('#login-msg').textContent = '';
+    if (!window.APP_CONFIG) { showLogin('config.js 沒有載入或內容有語法錯誤（常見：引號、逗號）'); return; }
     dcBind(); fbBind(); bdBind(); rcBind();
     dcRender();
 
