@@ -552,7 +552,7 @@
   /* ================================================================
    * Page: 穿著紀錄
    * ================================================================ */
-  const records = { rows: [], stale: true };
+  const records = { rows: [], stale: true, openId: null };
 
   function rcBind() {
     fillCatSelect($('#rc-cat'), true);
@@ -560,6 +560,8 @@
     $('#rc-cat').addEventListener('change', rcRender);
     $('#rc-reload').addEventListener('click', () => loadRecords(true));
     $('#rc-list').addEventListener('click', (e) => {
+      const ed = e.target.closest('[data-edit-id]');
+      if (ed) { openEdit(ed.dataset.editId); return; }
       const tr = e.target.closest('tr.rc-row'); if (!tr) return;
       toggleRecordRow(tr);
     });
@@ -573,6 +575,7 @@
   function toggleRecordRow(tr) {
     const open = !tr.classList.contains('open');
     tr.classList.toggle('open', open);
+    records.openId = open ? tr.dataset.id : null;
     tr.setAttribute('aria-expanded', String(open));
     const d = tr.nextElementSibling;
     if (d && d.classList.contains('rc-detail')) d.hidden = !open;
@@ -625,7 +628,7 @@
         .filter(([, v]) => v !== null && v !== undefined && v !== '');
       const catText = r.category_des || CAT_LABEL[r.category] || '';
       return `
-        <tr class="rc-row" tabindex="0" aria-expanded="false">
+        <tr class="rc-row${records.openId === r.id ? ' open' : ''}" data-id="${esc(r.id)}" tabindex="0" aria-expanded="${records.openId === r.id}">
           <td class="c-brand">${r.brand ? esc(r.brand) : dash}</td>
           <td class="c-cat">${catText ? esc(catText) : dash}</td>
           <td class="c-size">${r.labeled_size ? esc(r.labeled_size) : dash}</td>
@@ -633,7 +636,7 @@
           <td class="c-style"><div class="clamp">${r.style_note ? esc(r.style_note) : dash}</div></td>
           <td class="c-age">${r.baby_age_months != null ? esc(r.baby_age_months) : dash}</td>
         </tr>
-        <tr class="rc-detail" hidden>
+        <tr class="rc-detail"${records.openId === r.id ? '' : ' hidden'}>
           <td colspan="6">
             <div class="rc-detail-inner">
               ${measures.length
@@ -643,6 +646,10 @@
               ${r.style_note ? `<p><b>款式</b>${esc(r.style_note)}</p>` : ''}
               ${r.note ? `<p><b>備註</b>${esc(r.note)}</p>` : ''}
               ${r.created_date ? `<p class="muted">紀錄於 ${esc(r.created_date)}</p>` : ''}
+              <button class="btn btn-tonal btn-block rc-edit" type="button" data-edit-id="${esc(r.id)}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+                編輯這筆
+              </button>
             </div>
           </td>
         </tr>`;
@@ -661,6 +668,112 @@
       <p class="table-hint">點一列看尺寸細節・表格可左右滑動</p>`;
   }
 
+
+  /* ================================================================
+   * 編輯穿著紀錄
+   * ================================================================ */
+  const ed = { id: null, measures: {}, lastFocus: null };
+
+  function toggleFitChip(textarea, t) {
+    const parts = textarea.value.split(/[、,，]\s*/).map(x => x.trim()).filter(Boolean);
+    const i = parts.indexOf(t);
+    if (i >= 0) parts.splice(i, 1); else parts.push(t);
+    textarea.value = parts.join('、');
+  }
+
+  function edRenderChips() {
+    const text = $('#ed-fit').value;
+    $('#ed-fit-chips').innerHTML = FIT_CHIPS.map(t =>
+      `<button type="button" class="chip ${text.includes(t) ? 'on' : ''}" data-chip="${esc(t)}">${esc(t)}</button>`).join('');
+  }
+
+  function edRenderMeasures() {
+    $('#ed-measures').innerHTML = measureInputsHtml($('#ed-category').value, ed.measures, 'data-m');
+  }
+
+  function openEdit(id) {
+    const r = records.rows.find(x => x.id === id);
+    if (!r) { toast('找不到這筆紀錄，請重新整理', 'err'); return; }
+    ed.id = id;
+    ed.lastFocus = document.activeElement;
+    ed.measures = {};
+    ALL_FIELDS.forEach(([k]) => { ed.measures[k] = num(r[k + '_cm']); });
+
+    $('#ed-brand').value = r.brand || '';
+    $('#ed-category').value = CAT_LABEL[r.category] ? r.category : 'other';
+    $('#ed-size').value = r.labeled_size || '';
+    $('#ed-age').value = r.baby_age_months ?? '';
+    $('#ed-catdes').value = r.category_des || '';
+    $('#ed-fit').value = r.fit_feedback || '';
+    $('#ed-style').value = r.style_note || '';
+    $('#ed-note').value = r.note || '';
+    edRenderMeasures();
+    edRenderChips();
+
+    $('#edit-sheet').hidden = false;
+    document.body.classList.add('no-scroll');
+    $('.edit-body').scrollTop = 0;
+  }
+
+  function closeEdit() {
+    $('#edit-sheet').hidden = true;
+    document.body.classList.remove('no-scroll');
+    ed.id = null;
+    if (ed.lastFocus && ed.lastFocus.focus) ed.lastFocus.focus();
+  }
+
+  async function saveEdit() {
+    const brand = $('#ed-brand').value.trim();
+    const size = $('#ed-size').value.trim();
+    if (!brand) { toast('請填寫品牌', 'err'); $('#ed-brand').focus(); return; }
+    if (!size) { toast('請填寫尺寸', 'err'); $('#ed-size').focus(); return; }
+
+    const cat = $('#ed-category').value;
+    const shown = new Set(groupsFor(cat).flatMap(([, f]) => f.map(([k]) => k)));
+    const m = {};
+    ALL_FIELDS.forEach(([k]) => { m[k] = shown.has(k) ? (ed.measures[k] ?? null) : null; });
+
+    const payload = {
+      id: ed.id,
+      brand, category: cat,
+      category_des: $('#ed-catdes').value.trim(),
+      labeled_size: size,
+      baby_age_months: num($('#ed-age').value),
+      shoulder_cm: m.shoulder, length_cm: m.length, chest_cm: m.chest, sleeve_cm: m.sleeve,
+      waist_cm: m.waist, pants_length_cm: m.pants_length, inseam_cm: m.inseam, hip_cm: m.hip,
+      fit_feedback: $('#ed-fit').value.trim(),
+      style_note: $('#ed-style').value.trim(),
+      note: $('#ed-note').value.trim()
+    };
+
+    try {
+      const r = await api('updateFeedback', payload);
+      const i = records.rows.findIndex(x => x.id === payload.id);
+      if (i >= 0 && r.item) records.rows[i] = r.item;
+      records.openId = payload.id;
+      closeEdit();
+      rcRender();
+      toast('已更新', 'ok');
+    } catch (err) { toast(err.message, 'err', 4000); }
+  }
+
+  function edBind() {
+    fillCatSelect($('#ed-category'));
+    $('#ed-category').addEventListener('change', edRenderMeasures);
+    $('#ed-measures').addEventListener('input', (e) => {
+      if (e.target.dataset.m) ed.measures[e.target.dataset.m] = num(e.target.value);
+    });
+    $('#ed-fit').addEventListener('input', edRenderChips);
+    $('#ed-fit-chips').addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-chip]'); if (!chip) return;
+      toggleFitChip($('#ed-fit'), chip.dataset.chip);
+      edRenderChips();
+    });
+    $$('[data-close-edit]').forEach(el => el.addEventListener('click', closeEdit));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#edit-sheet').hidden) closeEdit(); });
+    $('#ed-save').addEventListener('click', () => busy($('#ed-save'), '儲存中…', saveEdit));
+  }
+
   /* ================================================================
    * Boot
    * ================================================================ */
@@ -668,7 +781,7 @@
     window.__booted = true;
     $('#login-msg').textContent = '';
     if (!window.APP_CONFIG) { showLogin('config.js 沒有載入或內容有語法錯誤（常見：引號、逗號）'); return; }
-    dcBind(); fbBind(); bdBind(); rcBind();
+    dcBind(); fbBind(); bdBind(); rcBind(); edBind();
     dcRender();
 
     window.addEventListener('hashchange', () => { if (!$('#app').hidden) route(); });
