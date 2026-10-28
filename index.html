@@ -16,13 +16,14 @@
 <body>
 
   <!-- ================= Login ================= -->
-  <section id="login-screen" class="login" hidden>
+  <section id="login-screen" class="login">
     <div class="login-inner">
       <div class="login-mark" aria-hidden="true">👶</div>
       <h1 class="login-title">寶寶買衣攻略器</h1>
       <p class="login-lead">用寶寶實穿過的紀錄，<br>挑出「不用反折」的那一號。</p>
       <div id="gsi-button" class="gsi-slot"></div>
-      <p id="login-msg" class="login-msg" role="alert"></p>
+      <p id="login-msg" class="login-msg" role="alert">載入中…</p>
+      <noscript><p class="login-msg">請開啟瀏覽器的 JavaScript</p></noscript>
       <p class="login-fine">僅限受邀的 Google 帳號使用</p>
     </div>
   </section>
@@ -218,8 +219,93 @@
     </div>
   </div>
 
+  <!-- 編輯穿著紀錄 -->
+  <div id="edit-sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close-edit></div>
+    <div class="sheet-panel edit-panel" role="dialog" aria-modal="true" aria-labelledby="ed-title">
+      <div class="sheet-grip"></div>
+      <div class="edit-head">
+        <h2 id="ed-title">編輯紀錄</h2>
+        <button class="icon-btn" type="button" data-close-edit aria-label="關閉">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="edit-body">
+        <div class="grid-2">
+          <label class="field"><span>品牌 <i>*</i></span>
+            <input id="ed-brand" autocomplete="off">
+          </label>
+          <label class="field"><span>類型</span>
+            <select id="ed-category"></select>
+          </label>
+          <label class="field"><span>尺寸 <i>*</i></span>
+            <input id="ed-size" autocomplete="off">
+          </label>
+          <label class="field"><span>穿時月齡</span>
+            <input id="ed-age" type="number" inputmode="numeric" min="0" step="1">
+          </label>
+          <label class="field span-2"><span>分類 / 品項描述</span>
+            <input id="ed-catdes" placeholder="例如：長袖上衣、牛仔褲" autocomplete="off">
+          </label>
+        </div>
+
+        <div class="edit-section">
+          <div class="edit-section-head"><span>尺寸數值</span><small>cm</small></div>
+          <div id="ed-measures" class="measure-grid"></div>
+        </div>
+
+        <div class="edit-section">
+          <div class="edit-section-head"><span>穿起來如何</span></div>
+          <div id="ed-fit-chips" class="chip-row"></div>
+          <label class="field"><span>回饋</span>
+            <textarea id="ed-fit" rows="2"></textarea>
+          </label>
+        </div>
+
+        <div class="grid-2 edit-section">
+          <label class="field span-2"><span>款式 / 花色</span>
+            <input id="ed-style" autocomplete="off">
+          </label>
+          <label class="field span-2"><span>備註</span>
+            <textarea id="ed-note" rows="2"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="edit-foot">
+        <button class="btn btn-outline" type="button" data-close-edit>取消</button>
+        <button id="ed-save" class="btn btn-primary" type="button">儲存變更</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
+  <!-- 啟動診斷：任何檔案載入失敗或程式錯誤，直接顯示在畫面上，不會整片空白 -->
+  <script>
+    (function () {
+      function show(msg) {
+        var el = document.getElementById('login-msg');
+        var ls = document.getElementById('login-screen');
+        var app = document.getElementById('app');
+        if (app) app.hidden = true;
+        if (ls) ls.hidden = false;
+        if (el) { el.style.color = '#C2413B'; el.textContent = msg; }
+      }
+      window.__bootError = show;
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+          var src = t.src || t.href || '';
+          if (/accounts\.google\.com/.test(src)) return show('Google 登入元件載入失敗，請檢查網路或關閉擋廣告外掛');
+          return show('檔案載入失敗：' + src.replace(location.origin, '') + '（請確認 GitHub 上有這個檔案，路徑大小寫要一致）');
+        }
+        if (!window.__booted) show('程式錯誤：' + (e.message || e.error) + (e.filename ? '（' + e.filename.split('/').pop() + ':' + e.lineno + '）' : ''));
+      }, true);
+      setTimeout(function () {
+        if (!window.__booted) show('程式沒有啟動：請確認 assets/app.js 有上傳到 GitHub');
+      }, 6000);
+    })();
+  </script>
   <script src="config.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="assets/app.js"></script>
