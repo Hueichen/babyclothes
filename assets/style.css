@@ -382,3 +382,33 @@ details.debug pre { white-space: pre-wrap; word-break: break-all; max-height: 26
 .rc-detail-inner p b { color: var(--ink); margin-right: 8px; font-size: 13px; }
 .rc-detail-inner .kv { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .table-hint { margin: 8px 2px 0; font-size: 12px; color: var(--ink-3); text-align: center; }
+
+/* ---------- Edit sheet ---------- */
+body.no-scroll { overflow: hidden; }
+.edit-panel {
+  max-height: 92dvh;
+  padding: 10px 0 0;
+  gap: 0;
+}
+.edit-head { display: flex; align-items: center; justify-content: space-between; padding: 0 12px 6px 20px; }
+.edit-head h2 { margin: 0; font-size: 18px; }
+.edit-body {
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding: 6px 20px 16px;
+}
+.edit-section { margin-top: 18px; }
+.edit-section .field { margin-top: 12px; }
+.edit-section-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.edit-section-head small { color: var(--ink-3); font-weight: 500; }
+.edit-foot {
+  display: grid; grid-template-columns: 1fr 2fr; gap: 10px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.rc-edit { margin-top: 12px; min-height: 42px; font-size: 15px; }
+.rc-edit svg { width: 18px; height: 18px; }
+@media (min-width: 700px) {
+  .edit-panel { bottom: auto; top: 50%; transform: translateY(-50%); border-radius: 24px; max-height: 86dvh; animation: fade .2s; }
+  .edit-panel .sheet-grip { display: none; }
+}
