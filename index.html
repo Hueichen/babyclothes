@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="買衣攻略">
   <title>寶寶買衣攻略器</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👶</text></svg>">
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/style.css?v=20261107">
 </head>
 <body>
 
@@ -50,6 +50,13 @@
             </label>
             <label class="field"><span>類型</span>
               <select id="dc-category" class="js-cat-select"></select>
+            </label>
+            <label class="field span-2"><span>寶寶目前月齡</span>
+              <div class="input-suffix">
+                <input id="dc-age" type="number" inputmode="decimal" min="0" max="120" step="0.5" placeholder="例如：18">
+                <em>個月</em>
+              </div>
+              <small id="dc-age-hint" class="field-hint"></small>
             </label>
           </div>
         </div>
@@ -306,8 +313,8 @@
       }, 6000);
     })();
   </script>
-  <script src="config.js"></script>
+  <script src="config.js?v=20261107"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="assets/app.js"></script>
+  <script src="assets/app.js?v=20261107"></script>
 </body>
 </html>
