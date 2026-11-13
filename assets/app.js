@@ -206,6 +206,7 @@
     $('#sheet-name').textContent = u.name || '';
     $('#sheet-email').textContent = u.email || '';
     route();
+    dcPrefillAge();
   }
 
   /* ---------- account sheet ---------- */
@@ -288,6 +289,7 @@
     fillCatSelect($('#dc-category'));
     $('#dc-category').value = 'top';
     $('#dc-category').addEventListener('change', dcRender);
+    $('#dc-age').addEventListener('input', () => { $('#dc-age-hint').textContent = ''; });
 
     const box = $('#dc-cards');
     box.addEventListener('input', (e) => {
@@ -353,6 +355,9 @@
     const cands = valid.filter(c => c.include).map(c => c.size.trim());
     if (!cands.length) { toast('請至少新增一個尺寸並列入候選', 'err'); return; }
 
+    const ageVal = num($('#dc-age').value);
+    if (ageVal !== null && (ageVal < 0 || ageVal > 120)) { toast('月齡請填 0～120', 'err'); $('#dc-age').focus(); return; }
+    if (ageVal === null) toast('沒填月齡，會用體型紀錄推算', '', 2200);
     const brand = $('#dc-brand').value.trim();
     const category = dcCategory();
     const sizes = valid.map(c => {
@@ -365,14 +370,46 @@
       const r = await api('decide', {
         extracted: { brand, category, unit: 'cm', sizes },
         candidates: Array.from(new Set(cands)).join(','),
-        brand, category
+        brand, category,
+        current_age_months: num($('#dc-age').value)
       });
-      renderDecision(r.decision, r.debug);
+      renderDecision(r.decision, r.debug, r.context);
     } catch (err) { toast(err.message, 'err', 4000); }
   }
 
-  function renderDecision(d, debug) {
+  function ctxLine(ctx) {
+    if (!ctx) return '';
+    const bits = [];
+    if (ctx.current_age_months != null) bits.push(`${Math.round(ctx.current_age_months * 10) / 10} 個月${ctx.age_source === 'profile' ? '（推算）' : ''}`);
+    if (ctx.est_height_cm != null) bits.push(`推估身高 ${ctx.est_height_cm} cm`);
+    return bits.length ? `<div class="result-ctx">依 ${esc(bits.join('・'))} 判斷</div>` : '';
+  }
+
+  /** 從最新一筆體型紀錄推算目前月齡（記錄月齡 + 量測後經過的月數） */
+  function estimateAgeFromRecords(rows) {
+    const r = (rows || []).find(x => x.baby_age_months != null && x.date);
+    if (!r) return null;
+    const months = (Date.now() - new Date(r.date + 'T00:00:00').getTime()) / (864e5 * 30.44);
+    return { age: Math.round((r.baby_age_months + Math.max(0, months)) * 2) / 2, from: r };
+  }
+
+  async function dcPrefillAge() {
+    if ($('#dc-age').value) return;
+    try {
+      const r = await api('getSizeRecords');
+      const est = estimateAgeFromRecords(r.rows);
+      if (!est || $('#dc-age').value) {
+        $('#dc-age-hint').textContent = est ? '' : '到「體型」新增一筆含月齡的紀錄，下次會自動帶入';
+        return;
+      }
+      $('#dc-age').value = est.age;
+      $('#dc-age-hint').textContent = `依 ${est.from.date}（${est.from.baby_age_months} 個月）的紀錄推算，可自行修改`;
+    } catch { /* 不影響主要功能 */ }
+  }
+
+  function renderDecision(d, debug, ctx) {
     const modeText = {
+      numeric_age_weighted: '依實穿紀錄 × 月齡比對',
       numeric_similarity: '依實穿紀錄數值比對',
       ai: 'AI 綜合判斷',
       ai_fallback: 'AI 綜合判斷',
@@ -384,6 +421,7 @@
         <div class="result-label">建議購買尺寸</div>
         <div class="result-size">${esc(d.recommended_size || '—')}</div>
         ${modeText ? `<span class="result-mode">${modeText}</span>` : ''}
+        ${ctxLine(ctx)}
         ${reasons.length ? `<ul>${reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
         ${d.risk_note ? `<div class="result-risk">⚠ ${esc(d.risk_note)}</div>` : ''}
         <details class="debug"><summary>除錯資訊</summary><pre>${esc(JSON.stringify(debug, null, 2))}</pre></details>
